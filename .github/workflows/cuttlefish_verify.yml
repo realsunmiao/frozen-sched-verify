@@ -62,14 +62,23 @@ jobs:
           echo "=== Unpacking ==="
           unzip -q image.zip -d cuttlefish
           tar -xzf cvd-host_package.tar.gz -C cuttlefish
+          echo "=== Directory structure ==="
+          ls -la cuttlefish/
+          echo "=== Locating cvd binary ==="
+          find cuttlefish -name cvd -type f 2>/dev/null || echo "cvd not found"
+          CVD_BIN=$(find cuttlefish -name cvd -type f 2>/dev/null | head -1)
+          echo "CVD_BIN=${CVD_BIN}"
           echo "CVD_PATH=$(pwd)/cuttlefish" >> $GITHUB_ENV
+          dirname "$(dirname "${CVD_BIN}")" > /tmp/cvd_home
+          echo "CVD_HOME=$(cat /tmp/cvd_home)" >> $GITHUB_ENV
       - name: Start Cuttlefish
         env:
           CVD_PATH: ${{ env.CVD_PATH }}
+          HOME: ${{ env.CVD_HOME }}
         run: |
           set -euo pipefail
           cd "${CVD_PATH}"
-          ./bin/cvd start -daemon \
+          $HOME/bin/cvd start -daemon \
             -gpu_mode=guest_swiftshader \
             -memory_mb=12288 \
             -cpus=4 \
