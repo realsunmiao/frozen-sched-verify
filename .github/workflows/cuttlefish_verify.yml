@@ -77,10 +77,13 @@ jobs:
       - name: Start Cuttlefish
         env:
           CVD_PATH: ${{ env.CVD_PATH }}
-          HOME: /home/runner
         run: |
           set -euo pipefail
           cd "${CVD_PATH}"
+          echo '{"cvd_files":{}}' > fetcher_config.json
+          echo "=== etc/cvd_config contents ==="
+          ls etc/cvd_config/ 2>/dev/null || echo "no etc/cvd_config"
+          export HOME="${CVD_PATH}"
           export PATH="${CVD_PATH}/bin:${PATH}"
           export LD_LIBRARY_PATH="${CVD_PATH}/lib64:${LD_LIBRARY_PATH:-}"
           launch_cvd -daemon \
