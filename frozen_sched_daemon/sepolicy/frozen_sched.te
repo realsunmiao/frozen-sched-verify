@@ -1,0 +1,22 @@
+type frozen_sched, domain;
+type frozen_sched_exec, exec_type, vendor_file_type;
+
+init_daemon_domain(frozen_sched)
+
+# Allow cgroup freezer write
+allow frozen_sched cgroup:dir { search read write add_name remove_name };
+allow frozen_sched cgroup:file { read write create getattr setattr };
+allow frozen_sched cgroup:lnk_file { read };
+
+# Allow zram sysfs read
+allow frozen_sched sysfs_zram:file { read getattr };
+
+# Allow binder to AMS / lmkd
+allow frozen_sched activity_manager_service:binder { call transfer };
+allow frozen_sched lowmemorykiller:binder { call transfer };
+
+# Allow notification listener
+allow frozen_sched notification_listener_service:binder { call transfer };
+
+# Capability
+allow frozen_sched self:capability { sys_admin sys_resource };

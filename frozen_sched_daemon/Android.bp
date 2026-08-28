@@ -1,0 +1,49 @@
+cc_binary {
+    name: "frozen_sched_daemon",
+    vendor: true,
+    srcs: [
+        "daemon/main.cpp",
+        "daemon/Scheduler.cpp",
+        "daemon/Freezer.cpp",
+        "daemon/ZramMonitor.cpp",
+        "daemon/RdPredictor.cpp",
+        "daemon/NotifProxy.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "liblog",
+        "libbinder",
+        "libutils",
+        "libhidlbase",
+        "android.hardware.tflite@1.0",
+        "libtflite_micro",
+    ],
+    header_libs: [
+        "libbase_headers",
+        "libcutils_headers",
+    ],
+    cflags: [
+        "-std=c++17",
+        "-Wall",
+        "-Werror",
+        "-DFROZEN_SCHED_VERSION=1",
+    ],
+    init_rc: ["init/frozen_sched.rc"],
+    required: ["frozen_sched_sepolicy"],
+}
+
+cc_binary {
+    name: "frozen_sched_daemon_test",
+    test: true,
+    srcs: ["daemon/test_main.cpp"],
+    shared_libs: ["frozen_sched_daemon", "libgtest", "libgmock"],
+}
+
+# SELinux policy prebuilt
+prebuilt_etc {
+    name: "frozen_sched_sepolicy",
+    src: "sepolicy/frozen_sched.te",
+    sub_dir: "sepolicy/vendor",
+    filename: "frozen_sched.te",
+}

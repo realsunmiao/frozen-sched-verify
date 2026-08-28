@@ -1,0 +1,10 @@
+service frozen_sched /system/bin/frozen_sched_daemon --time_factor=1
+    class main
+    user system
+    group system
+    capabilities SYS_ADMIN SYS_RESOURCE
+    seclabel u:r:frozen_sched:s0
+    disabled
+
+on property:sys.boot_completed=1
+    start frozen_sched
