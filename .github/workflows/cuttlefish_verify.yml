@@ -26,9 +26,16 @@ jobs:
           sudo apt-get install -y -qq android-sdk-platform-tools curl unzip tar
       - name: Get latest build ID
         id: build_id
+        env:
+          TARGET: aosp_cf_x86_64_only_phone-userdebug
+          AB_API_KEY: AIzaSyBIelMvbjtNkpa5O96eqbm_IuSUA5WsO14
         run: |
-          BID=$(curl -fsSL "https://ci.android.com/builds/branch/${{ env.CUTTLEFISH_BRANCH }}/last-build-id" \
-                | sed -n 's/.*"last_build_id":"\([0-9]*\)".*/\1/p')
+          set -euo pipefail
+          RESP=$(curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" \
+            "https://androidbuild-pa.googleapis.com/v4/builds?buildAttemptStatus=complete&buildType=submitted&pageSize=1&successful=true&branches=${{ env.CUTTLEFISH_BRANCH }}&targets=${TARGET}")
+          echo "API response: ${RESP}" | head -c 2000
+          echo ""
+          BID=$(echo "${RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['builds'][0]['buildId'])")
           echo "BUILD_ID=$BID" >> $GITHUB_OUTPUT
           echo "Latest build ID: $BID"
       - name: Download Cuttlefish image + host package
@@ -39,24 +46,24 @@ jobs:
           AB_API_KEY: AIzaSyBIelMvbjtNkpa5O96eqbm_IuSUA5WsO14
         run: |
           set -euo pipefail
-          AB_API="https://androidbuild-pa.googleapis.com/v4/builds/${BUILD_ID}/${TARGET}/attempts/latest/artifacts"
-          IMG="${TARGET}-img-${BUILD_ID}.zip"
-          PKG="cvd-host_package.tar.gz"
+          AB="https://androidbuild-pa.googleapis.com/v4/builds/${BUILD_ID}/${TARGET}/attempts/latest"
+          echo "=== Listing artifacts ==="
+          ARTIFACTS=$(curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" "${AB}/artifacts?pageSize=100")
+          echo "${ARTIFACTS}" | python3 -c "import sys,json; [print(a['name']) for a in json.load(sys.stdin).get('artifacts',[])]"
           get_signed_url() {
-            curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" "${AB_API}/$1/url" \
+            curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" "${AB}/artifacts/$1/url" \
               | python3 -c "import sys,json; print(json.load(sys.stdin)['signedUrl'])"
           }
-          echo "Resolving signed URL for image: ${IMG} ..."
+          IMG="${TARGET}-img-${BUILD_ID}.zip"
+          PKG="cvd-host_package.tar.gz"
+          echo "=== Downloading image: ${IMG} ==="
           IMG_URL=$(get_signed_url "${IMG}")
-          echo "Downloading image ..."
           curl -fL -o image.zip "${IMG_URL}"
-          echo "Resolving signed URL for host package: ${PKG} ..."
+          echo "=== Downloading host package: ${PKG} ==="
           PKG_URL=$(get_signed_url "${PKG}")
-          echo "Downloading host package ..."
           curl -fL -o cvd-host_package.tar.gz "${PKG_URL}"
-          echo "Unpacking image ..."
+          echo "=== Unpacking ==="
           unzip -q image.zip -d cuttlefish
-          echo "Unpacking host package ..."
           tar -xzf cvd-host_package.tar.gz -C cuttlefish
           echo "CVD_PATH=$(pwd)/cuttlefish" >> $GITHUB_ENV
       - name: Start Cuttlefish
