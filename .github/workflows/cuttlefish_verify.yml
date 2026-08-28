@@ -36,15 +36,24 @@ jobs:
         env:
           BUILD_ID: ${{ steps.build_id.outputs.BUILD_ID }}
           TARGET: aosp_cf_x86_64_only_phone-userdebug
+          AB_API_KEY: AIzaSyBIelMvbjtNkpa5O96eqbm_IuSUA5WsO14
         run: |
           set -euo pipefail
-          BASE="https://ci.android.com/builds/submitted/${BUILD_ID}/${TARGET}/latest"
+          AB_API="https://androidbuild-pa.googleapis.com/v4/builds/${BUILD_ID}/${TARGET}/attempts/latest/artifacts"
           IMG="${TARGET}-img-${BUILD_ID}.zip"
           PKG="cvd-host_package.tar.gz"
-          echo "Downloading image: ${IMG} ..."
-          curl -fL -o image.zip "${BASE}/${IMG}"
-          echo "Downloading host package: ${PKG} ..."
-          curl -fL -o cvd-host_package.tar.gz "${BASE}/${PKG}"
+          get_signed_url() {
+            curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" "${AB_API}/$1/url" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['signedUrl'])"
+          }
+          echo "Resolving signed URL for image: ${IMG} ..."
+          IMG_URL=$(get_signed_url "${IMG}")
+          echo "Downloading image ..."
+          curl -fL -o image.zip "${IMG_URL}"
+          echo "Resolving signed URL for host package: ${PKG} ..."
+          PKG_URL=$(get_signed_url "${PKG}")
+          echo "Downloading host package ..."
+          curl -fL -o cvd-host_package.tar.gz "${PKG_URL}"
           echo "Unpacking image ..."
           unzip -q image.zip -d cuttlefish
           echo "Unpacking host package ..."
