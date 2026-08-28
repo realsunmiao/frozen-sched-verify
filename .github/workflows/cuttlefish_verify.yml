@@ -47,14 +47,11 @@ jobs:
         run: |
           set -euo pipefail
           AB="https://androidbuild-pa.googleapis.com/v4/builds/${BUILD_ID}/${TARGET}/attempts/latest"
-          echo "=== Listing artifacts ==="
-          ARTIFACTS=$(curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" "${AB}/artifacts?pageSize=100")
-          echo "${ARTIFACTS}" | python3 -c "import sys,json; [print(a['name']) for a in json.load(sys.stdin).get('artifacts',[])]"
           get_signed_url() {
             curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" "${AB}/artifacts/$1/url" \
               | python3 -c "import sys,json; print(json.load(sys.stdin)['signedUrl'])"
           }
-          IMG="${TARGET}-img-${BUILD_ID}.zip"
+          IMG="aosp_cf_x86_64_only_phone-img-${BUILD_ID}.zip"
           PKG="cvd-host_package.tar.gz"
           echo "=== Downloading image: ${IMG} ==="
           IMG_URL=$(get_signed_url "${IMG}")
