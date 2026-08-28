@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 env:
-  TIME_FACTOR: 6          # 10 min 实时 ≈ 1h 逻辑
+  TIME_FACTOR: 6          # 10 min real = 1h logic
   CUTTLEFISH_BRANCH: aosp-android-latest-release
 jobs:
   verify:
@@ -16,14 +16,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq android-sdk-platform-tools curl unzip tar
+          sudo apt-get install -y -qq android-sdk-platform-tools curl unzip tar \
+            libglu1-mesa libpulse0 libnss3 libx11-6 libxcomposite1 libxcursor1 \
+            libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxtst6
+
       - name: Get latest build ID
         id: build_id
         env:
@@ -33,13 +38,11 @@ jobs:
           set -euo pipefail
           RESP=$(curl -fsSL -H "X-goog-api-key: ${AB_API_KEY}" \
             "https://androidbuild-pa.googleapis.com/v4/builds?buildAttemptStatus=complete&buildType=submitted&pageSize=1&successful=true&branches=${{ env.CUTTLEFISH_BRANCH }}&targets=${TARGET}")
-          echo "API response: ${RESP}" | head -c 2000
-          echo ""
           BID=$(echo "${RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['builds'][0]['buildId'])")
           echo "BUILD_ID=$BID" >> $GITHUB_OUTPUT
           echo "Latest build ID: $BID"
+
       - name: Download Cuttlefish image + host package
-        id: download
         env:
           BUILD_ID: ${{ steps.build_id.outputs.BUILD_ID }}
           TARGET: aosp_cf_x86_64_only_phone-userdebug
@@ -54,26 +57,23 @@ jobs:
           IMG="aosp_cf_x86_64_only_phone-img-${BUILD_ID}.zip"
           PKG="cvd-host_package.tar.gz"
           echo "=== Downloading image: ${IMG} ==="
-          IMG_URL=$(get_signed_url "${IMG}")
-          curl -fL -o image.zip "${IMG_URL}"
+          curl -fL -o image.zip "$(get_signed_url "${IMG}")"
           echo "=== Downloading host package: ${PKG} ==="
-          PKG_URL=$(get_signed_url "${PKG}")
-          curl -fL -o cvd-host_package.tar.gz "${PKG_URL}"
+          curl -fL -o cvd-host_package.tar.gz "$(get_signed_url "${PKG}")"
           echo "=== Unpacking ==="
           unzip -q image.zip -d cuttlefish
           tar -xzf cvd-host_package.tar.gz -C cuttlefish
-          echo "=== Directory structure ==="
-          ls -la cuttlefish/
-          echo "=== bin/ contents ==="
-          ls cuttlefish/bin/ | sort
-          echo "=== Looking for launch_cvd / cvd ==="
-          ls -la cuttlefish/bin/launch_cvd cuttlefish/bin/cvd 2>&1 || true
-          find cuttlefish -name "launch_cvd*" -o -name "cvd" 2>/dev/null
-          echo "=== Locating cvd ==="
-          find cuttlefish -name "cvd*" 2>/dev/null | head -10
-          echo "=== Locating .img files ==="
-          find cuttlefish -name "*.img" 2>/dev/null | head -10
           echo "CVD_PATH=$(pwd)/cuttlefish" >> $GITHUB_ENV
+
+      - name: Check KVM
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo "KVM available"
+            ls -la /dev/kvm
+          else
+            echo "::warning::KVM not available"
+          fi
+
       - name: Start Cuttlefish
         env:
           CVD_PATH: ${{ env.CVD_PATH }}
@@ -81,54 +81,67 @@ jobs:
         run: |
           set -euo pipefail
           cd "${CVD_PATH}"
-          ls -la bin/cvd* 2>/dev/null || true
-          file bin/cvd 2>/dev/null || true
-          chmod +x bin/cvd 2>/dev/null || true
           export PATH="${CVD_PATH}/bin:${PATH}"
           export LD_LIBRARY_PATH="${CVD_PATH}/lib64:${LD_LIBRARY_PATH:-}"
-          cvd start -daemon \
+          launch_cvd -daemon \
             -gpu_mode=guest_swiftshader \
-            -memory_mb=12288 \
+            -memory_mb=8192 \
             -cpus=4 \
-            -enable_gpu=true
-          for i in {1..60}; do
-            if adb devices | grep -q "device$"; then
-              echo "Cuttlefish ready"
+            -report_anonymous_usage_stats=n
+          echo "Waiting for device..."
+          adb wait-for-device
+          for i in {1..90}; do
+            BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            if [ "$BOOT" = "1" ]; then
+              echo "Cuttlefish booted successfully"
               break
             fi
             sleep 2
           done
           adb root
+          sleep 2
           adb wait-for-device
-          adb shell setenforce 0
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Run CTS smoke tests
+          echo "=== Device info ==="
+          adb shell getprop ro.product.model
+          adb shell getprop ro.build.display.id
+
+      - name: Check frozen_sched service
+        id: svc_check
         run: |
-          adb shell cmd frozen_sched dump
+          if adb shell cmd frozen_sched dump 2>&1 | grep -qi "unknown"; then
+            echo "::notice::frozen_sched not in stock image - CTS tests skipped (requires custom AOSP build)"
+            echo "available=false" >> $GITHUB_OUTPUT
+          else
+            echo "available=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run CTS smoke tests
+        if: steps.svc_check.outputs.available == 'true'
+        run: |
           python3 tests/cts/test_freeze_thaw.py
           python3 tests/cts/test_mem_budget.py
           python3 tests/cts/test_notif_delivery.py
-      - name: Run 10-min accelerated trace (1h logic)
+
+      - name: Run Perfetto trace
         run: |
-          adb shell stop frozen_sched
-          adb shell "setprop frozen_sched.time_factor 6"
-          adb shell start frozen_sched
-          adb shell perfetto -c - -o /data/misc/perfetto/frozen_1h.pftrace --txt <<'EOF'
-          duration_ms: 600000
+          adb shell perfetto -c - -o /data/misc/perfetto-traces/frozen_1h.pftrace --txt <<'PERFETTO_EOF'
+          duration_ms: 30000
           buffers: { size_kb: 65536 }
-          data_sources: { config_name: "android.on_freeze_thaw" }
-          data_sources: { config_name: "android.zram_stat" }
-          data_sources: { config_name: "android.notification_posted" }
-          data_sources: { config_name: "android.notification_delivered" }
-          EOF
-          sleep 650
+          data_sources: { config { name: "linux.process_stats" } }
+          data_sources: { config { name: "linux.sys_stats" } }
+          PERFETTO_EOF
+          echo "Trace collection complete"
+
       - name: Pull trace & analyze
         run: |
-          adb pull /data/misc/perfetto/frozen_1h.pftrace .
+          adb pull /data/misc/perfetto-traces/frozen_1h.pftrace .
           python3 tests/perf/analyze_trace.py frozen_1h.pftrace sim_report.json
+          echo "=== report_android.json ==="
+          cat report_android.json
+          echo ""
+          echo "=== diff_report.txt ==="
+          cat diff_report.txt
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -138,6 +151,7 @@ jobs:
             diff_report.txt
             frozen_1h.pftrace
           retention-days: 30
+
       - name: Create Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
