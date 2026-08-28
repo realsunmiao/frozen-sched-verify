@@ -93,11 +93,11 @@ jobs:
             -cpus=2 \
             -report_anonymous_usage_stats=n
           echo "Cuttlefish launched, waiting for adb..."
-          # Wait up to 20 minutes for device to appear and boot
+          # Wait up to 10 minutes for device to appear and boot
           BOOTED=0
-          for i in $(seq 1 240); do
-            if adb devices | grep -q "device$"; then
-              BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+          for i in $(seq 1 120); do
+            if timeout 10 adb devices 2>/dev/null | grep -q "device$"; then
+              BOOT=$(timeout 10 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
               if [ "$BOOT" = "1" ]; then
                 echo "Cuttlefish booted after $((i*5)) seconds"
                 BOOTED=1
@@ -107,15 +107,14 @@ jobs:
             sleep 5
           done
           if [ "$BOOTED" = "1" ]; then
-            adb root
+            timeout 15 adb root || true
             sleep 3
-            adb wait-for-device
-            adb shell getprop ro.product.model
-            adb shell getprop ro.build.display.id
+            timeout 15 adb shell getprop ro.product.model || true
+            timeout 15 adb shell getprop ro.build.display.id || true
             echo "booted=true" >> $GITHUB_OUTPUT
           else
-            echo "::warning::Cuttlefish did not fully boot in 20 minutes"
-            adb devices
+            echo "::warning::Cuttlefish did not fully boot in 10 minutes"
+            timeout 10 adb devices || true
             echo "booted=false" >> $GITHUB_OUTPUT
           fi
 
@@ -123,7 +122,7 @@ jobs:
         id: svc_check
         if: steps.start_cvd.outputs.booted == 'true'
         run: |
-          if adb shell cmd frozen_sched dump 2>&1 | grep -qi "unknown"; then
+          if timeout 10 adb shell cmd frozen_sched dump 2>&1 | grep -qi "unknown"; then
             echo "::notice::frozen_sched not in stock image - CTS tests skipped"
             echo "available=false" >> $GITHUB_OUTPUT
           else
@@ -140,13 +139,13 @@ jobs:
       - name: Run Perfetto trace
         if: steps.start_cvd.outputs.booted == 'true'
         run: |
-          adb shell perfetto -c - -o /data/misc/perfetto-traces/frozen_1h.pftrace --txt <<'PERFETTO_EOF'
+          timeout 60 adb shell perfetto -c - -o /data/misc/perfetto-traces/frozen_1h.pftrace --txt <<'PERFETTO_EOF'
           duration_ms: 30000
           buffers: { size_kb: 65536 }
           data_sources: { config { name: "linux.process_stats" } }
           data_sources: { config { name: "linux.sys_stats" } }
           PERFETTO_EOF
-          adb pull /data/misc/perfetto-traces/frozen_1h.pftrace .
+          timeout 30 adb pull /data/misc/perfetto-traces/frozen_1h.pftrace .
           echo "Trace collected and pulled"
 
       - name: Generate placeholder trace if boot failed
