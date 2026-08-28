@@ -27,7 +27,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq android-sdk-platform-tools curl unzip tar \
             libglu1-mesa libpulse0 libnss3 libx11-6 libxcomposite1 libxcursor1 \
-            libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxtst6
+            libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxtst6 \
+            qemu-system-x86 bridge-utils
 
       - name: Get latest build ID
         id: build_id
@@ -81,12 +82,15 @@ jobs:
           set -euo pipefail
           cd "${CVD_PATH}"
           echo '{"cvd_files":{}}' > fetcher_config.json
+          echo "=== crosvm wrapper ==="
+          cat bin/crosvm 2>/dev/null | head -5
           echo "=== etc/cvd_config contents ==="
           ls etc/cvd_config/ 2>/dev/null || echo "no etc/cvd_config"
           export HOME="${CVD_PATH}"
           export PATH="${CVD_PATH}/bin:${PATH}"
           export LD_LIBRARY_PATH="${CVD_PATH}/lib64:${LD_LIBRARY_PATH:-}"
           launch_cvd -daemon \
+            -vm_manager=qemu_cli \
             -gpu_mode=guest_swiftshader \
             -memory_mb=8192 \
             -cpus=4 \
