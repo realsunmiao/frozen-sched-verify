@@ -86,7 +86,8 @@ jobs:
           export HOME="${CVD_PATH}"
           export PATH="${CVD_PATH}/bin:${PATH}"
           export LD_LIBRARY_PATH="${CVD_PATH}/lib64:${LD_LIBRARY_PATH:-}"
-          launch_cvd -daemon \
+          sudo -E env PATH="${PATH}" LD_LIBRARY_PATH="${LD_LIBRARY_PATH}" HOME="${CVD_PATH}" \
+            launch_cvd -daemon \
             -gpu_mode=guest_swiftshader \
             -memory_mb=8192 \
             -cpus=4 \
