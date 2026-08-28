@@ -14,7 +14,7 @@ env:
 jobs:
   verify:
     name: Verify on Cuttlefish (x86_64, API 34)
-    runs-on: ubuntu-latest-16gb  # 需 16GB 内存
+    runs-on: ubuntu-latest  # 16GB RAM
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -94,7 +94,7 @@ jobs:
           adb shell "setprop frozen_sched.time_factor 6"
           adb shell start frozen_sched
           # 启动 Perfetto 录制
-          adb shell perfetto -c - -o /data/misc/perfetto/frozen_1h.pftrace --txt <<'"'"'EOF'"'"'
+          adb shell perfetto -c - -o /data/misc/perfetto/frozen_1h.pftrace --txt <<'EOF'
           duration_ms: 600000
           buffers: { size_kb: 65536 }
           data_sources: {
@@ -129,7 +129,7 @@ jobs:
           retention-days: 30
 
       - name: Create Release (on tag)
-        if: startsWith(github.ref, '"'"'refs/tags/'"'"')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           files: |
