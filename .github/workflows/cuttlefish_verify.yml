@@ -64,21 +64,26 @@ jobs:
           tar -xzf cvd-host_package.tar.gz -C cuttlefish
           echo "=== Directory structure ==="
           ls -la cuttlefish/
-          echo "=== Locating cvd binary ==="
-          find cuttlefish -name cvd -type f 2>/dev/null || echo "cvd not found"
-          CVD_BIN=$(find cuttlefish -name cvd -type f 2>/dev/null | head -1)
-          echo "CVD_BIN=${CVD_BIN}"
+          echo "=== bin/ contents ==="
+          ls -la cuttlefish/bin/ | head -30
+          echo "=== Locating cvd ==="
+          find cuttlefish -name "cvd*" 2>/dev/null | head -10
+          echo "=== Locating .img files ==="
+          find cuttlefish -name "*.img" 2>/dev/null | head -10
           echo "CVD_PATH=$(pwd)/cuttlefish" >> $GITHUB_ENV
-          dirname "$(dirname "${CVD_BIN}")" > /tmp/cvd_home
-          echo "CVD_HOME=$(cat /tmp/cvd_home)" >> $GITHUB_ENV
       - name: Start Cuttlefish
         env:
           CVD_PATH: ${{ env.CVD_PATH }}
-          HOME: ${{ env.CVD_HOME }}
+          HOME: /home/runner
         run: |
           set -euo pipefail
           cd "${CVD_PATH}"
-          $HOME/bin/cvd start -daemon \
+          ls -la bin/cvd* 2>/dev/null || true
+          file bin/cvd 2>/dev/null || true
+          chmod +x bin/cvd 2>/dev/null || true
+          export PATH="${CVD_PATH}/bin:${PATH}"
+          export LD_LIBRARY_PATH="${CVD_PATH}/lib64:${LD_LIBRARY_PATH:-}"
+          cvd start -daemon \
             -gpu_mode=guest_swiftshader \
             -memory_mb=12288 \
             -cpus=4 \
