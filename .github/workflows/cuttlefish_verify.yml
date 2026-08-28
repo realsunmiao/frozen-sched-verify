@@ -65,7 +65,10 @@ jobs:
           echo "=== Directory structure ==="
           ls -la cuttlefish/
           echo "=== bin/ contents ==="
-          ls -la cuttlefish/bin/ | head -30
+          ls cuttlefish/bin/ | sort
+          echo "=== Looking for launch_cvd / cvd ==="
+          ls -la cuttlefish/bin/launch_cvd cuttlefish/bin/cvd 2>&1 || true
+          find cuttlefish -name "launch_cvd*" -o -name "cvd" 2>/dev/null
           echo "=== Locating cvd ==="
           find cuttlefish -name "cvd*" 2>/dev/null | head -10
           echo "=== Locating .img files ==="
