@@ -1,0 +1,44 @@
+{
+  "_version": "v0.4",
+  "_note": "H5 incremental fresh-pages decay. Skopt 50-trial sweep found a lower-swap (2.11 GB) corner but violated overall_pass; this config trades 0.5 GB extra swap for full constraint compliance (78% reduction vs v0.2 baseline).",
+  "params": {
+    "V": 100000,
+    "kFreshPagesFrac": 0.10,
+    "kThawHysteresisMs": 60000,
+    "kRdFrozenThreshold": 60,
+    "H5_enabled": 1,
+    "H5_first_frac": 0.20,
+    "H5_decay_frac": 0.02
+  },
+  "metrics_v0.2_baseline": {
+    "swap_gb": 32.69,
+    "notif_rate": 0.9024,
+    "bg_foreground_ratio": 0.05,
+    "overall_pass": true
+  },
+  "metrics_v0.4": {
+    "swap_gb": 7.07,
+    "notif_rate": 0.9024,
+    "bg_foreground_ratio": 0.05,
+    "overall_pass": true
+  },
+  "swap_reduction_pct": 78.4,
+  "skopt_50trial_alternative": {
+    "params": {
+      "V": 1000000.0,
+      "kRdFrozenThreshold": 30.0,
+      "kThawHysteresisMs": 300000.0,
+      "kFreshPagesFrac": 0.5,
+      "H5_enabled": 1,
+      "H5_first_frac": 0.1,
+      "H5_decay_frac": 0.01
+    },
+    "metrics": {
+      "swap_gb": 2.11,
+      "notif_rate": 0.9014,
+      "bg_foreground_ratio": 0.25,
+      "overall_pass": false
+    },
+    "_note": "violates overall_pass; not recommended for production"
+  }
+}

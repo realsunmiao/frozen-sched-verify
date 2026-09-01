@@ -1,0 +1,5 @@
+Illegal transitions: sim=0 android=0 tol=0 OK
+Swap GB (10%): sim=32.69 android=33.2 tol=5.0 OK
+Notif rate: sim=0.9024 android=0.905 tol=0.02 OK
+
+Overall: PASS

@@ -1,0 +1,7 @@
+﻿__pycache__/
+*.pyc
+*.pftrace
+sim_report.json
+frozen_sched_daemon/build/
+*.log
+*.tmp
